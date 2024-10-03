@@ -1,0 +1,74 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: copaco
+# "app" enables Serverless Framework Dashboard features and sharing them with other Services.
+app: pruebas-tecnicas
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: agendamiento-cita-serverless
+
+stages:
+  default:
+    params:
+      tableName: "appointment-table-${sls:stage}"
+      region: "us-east-1"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: us-east-1
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - Fn::GetAtt: [AppointmentTable, Arn]
+        - Effect: "Allow"
+          Action:
+            - "sns:Publish"
+          Resource:
+            - { "Ref": SNSTopic }
+        - Effect: "Allow"
+          Action:
+            - "sqs:SendMessage"
+          Resource:
+            - { "Fn::GetAtt": [SQSPe, Arn] }
+            - { "Fn::GetAtt": [SQSCl, Arn] }
+        - Effect: "Allow"
+          Action:
+            - "ssm:GetParameter"
+            - "ssm:GetParameters"
+          Resource:
+            - arn:aws:ssm:${self:provider.region}:*:parameter/rds/mysql/*
+        - Effect: "Allow"
+          Action:
+            - "events:PutEvents"
+          Resource:
+            - "*"
+        - Effect: "Allow"
+          Action:
+            - "sqs:SendMessage"
+            - "sqs:ReceiveMessage"
+            - "sqs:DeleteMessage"
+          Resource:
+            - arn:aws:sqs:${self:provider.region}:*:SQSUpdateState
+  environment:
+    APPOINTMENT_TABLE: ${param:tableName}
+    SNS_TOPIC_ARN: { "Ref": SNSTopic }
+    DB_HOST: ${ssm:/rds/mysql/DB_HOST}
+    DB_USER: ${ssm:/rds/mysql/DB_USER}
+    DB_PASSWORD: ${ssm:/rds/mysql/DB_PASSWORD~true}
+
+custom:
+  regions:
+    dev: "us-east-1"
+
+functions: ${file(./src/config/functions.yml)}
+
+resources: ${file(./src/config/resources.yml)}

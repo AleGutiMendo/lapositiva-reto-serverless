@@ -1,0 +1,36 @@
+createAppointment:
+  handler: src/handlers/appointmentHandler.handler
+  events:
+    - http:
+        path: /create-appointment
+        method: post
+        cors:
+          origin: "*"
+          headers:
+            - Content-Type
+            - X-Amz-Date
+            - Authorization
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          allowCredentials: false
+appointmentPe:
+  handler: src/handlers/appointmentHandler.peHandler
+  events:
+    - sqs:
+        arn:
+          Fn::GetAtt:
+            - SQSPe
+            - Arn
+  environment:
+    DB_NAME: ${ssm:/rds/mysql/DB_NAME_Pe}
+appointmentCl:
+  handler: src/handlers/appointmentHandler.clHandler
+  events:
+    - sqs:
+        arn:
+          Fn::GetAtt:
+            - SQSCl
+            - Arn
+  environment:
+    DB_NAME: ${ssm:/rds/mysql/DB_NAME_Cl}

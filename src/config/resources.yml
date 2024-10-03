@@ -1,0 +1,112 @@
+Resources:
+  AppointmentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: appointmentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: appointmentId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      TableName: ${param:tableName}
+
+  # Topic SNS
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: sns-topic-appointments
+
+  # SQS para Perú
+  SQSPe:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: SQSPE
+
+  # SQS para Chile
+  SQSCl:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: SQSCL
+
+  # SQS para actualizar estado
+  SQSUpdateState:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: SQSUpdateState
+
+  # EventBridge Rule
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "appointment.source"
+        detail-type:
+          - "AppointmentConformity"
+      Targets:
+        - Arn:
+            Fn::GetAtt:
+              - SQSUpdateState
+              - Arn
+          Id: "target-appointment-conformity"
+
+    # Política para permitir que SNS publique en SQS_PE
+  SQSPePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - { "Ref": SQSPe }
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "sqs:SendMessage"
+            Resource:
+              Fn::GetAtt: [SQSPe, Arn]
+            Condition:
+              ArnEquals:
+                aws:SourceArn: { "Ref": SNSTopic }
+
+    # Política para permitir que SNS publique en SQS_CL
+  SQSClPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - { "Ref": SQSCl }
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "sqs:SendMessage"
+            Resource:
+              Fn::GetAtt: [SQSCl, Arn]
+            Condition:
+              ArnEquals:
+                aws:SourceArn: { "Ref": SNSTopic }
+
+  # Suscripción de SNS a SQS_PE filtrando countryISO = PE
+  SNSToSQSPeSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: { "Ref": SNSTopic }
+      Endpoint:
+        Fn::GetAtt: [SQSPe, Arn]
+      Protocol: sqs
+      FilterPolicy:
+        countryISO:
+          - "PE"
+
+  # Suscripción de SNS a SQS_CL filtrando countryISO = CL
+  SNSToSQSClSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: { "Ref": SNSTopic }
+      Endpoint:
+        Fn::GetAtt: [SQSCl, Arn]
+      Protocol: sqs
+      FilterPolicy:
+        countryISO:
+          - "CL"

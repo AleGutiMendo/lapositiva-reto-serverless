@@ -1,0 +1,7 @@
+Outputs:
+  SQSPeName:
+    Description: "Nombre de la cola SQSPE"
+    Value: { "Ref": SQSPe }
+  SQSClName:
+    Description: "Nombre de la cola SQSCL"
+    Value: { "Ref": SQSCl }
